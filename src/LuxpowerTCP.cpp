@@ -1,16 +1,71 @@
 #include "LuxpowerTCP.h"
 
-LuxpowerTCP::LuxpowerTCP() : _port(8000) {
+LuxpowerTCP::LuxpowerTCP() 
+  : _port(8000), _intervalSec(5), _lastPollTime(0) {
   memset(_ip, 0, sizeof(_ip));
   memset(_dongleSn, 0, sizeof(_dongleSn));
   memset(_inverterSn, 0, sizeof(_inverterSn));
 }
 
 void LuxpowerTCP::begin(const char* ip, const char* dongleSn, const char* inverterSn, uint16_t port) {
-  strncpy(_ip, ip, sizeof(_ip) - 1);
-  strncpy(_dongleSn, dongleSn, 10);
-  strncpy(_inverterSn, inverterSn, 10);
+  setHost(ip);
+  setDongleSN(dongleSn);
+  setInverterSN(inverterSn);
   _port = port;
+}
+
+void LuxpowerTCP::setHost(const char* ip) {
+  if (ip) {
+    strncpy(_ip, ip, sizeof(_ip) - 1);
+    _ip[sizeof(_ip) - 1] = '\0';
+  }
+}
+
+void LuxpowerTCP::setDongleSN(const char* dongleSn) {
+  if (dongleSn) {
+    snprintf(_dongleSn, sizeof(_dongleSn), "%-10s", dongleSn);
+  }
+}
+
+void LuxpowerTCP::setInverterSN(const char* inverterSn) {
+  if (inverterSn) {
+    snprintf(_inverterSn, sizeof(_inverterSn), "%-10s", inverterSn);
+  }
+}
+
+void LuxpowerTCP::setInterval(uint32_t seconds) {
+  _intervalSec = (seconds < 1) ? 1 : seconds;
+}
+
+uint32_t LuxpowerTCP::getInterval() const {
+  return _intervalSec;
+}
+
+bool LuxpowerTCP::shouldPoll() {
+  unsigned long now = millis();
+  if (now - _lastPollTime >= (_intervalSec * 1000UL)) {
+    _lastPollTime = now;
+    return true;
+  }
+  return false;
+}
+
+String LuxpowerTCP::discoverIP(uint16_t timeoutMs) {
+  IPAddress local = WiFi.localIP();
+  IPAddress scanIP = local;
+  WiFiClient scanClient;
+
+  for (int i = 2; i < 255; i++) {
+    scanIP[3] = i;
+    if (scanIP == local) continue;
+
+    if (scanClient.connect(scanIP, _port, timeoutMs)) {
+      scanClient.stop();
+      strncpy(_ip, scanIP.toString().c_str(), sizeof(_ip) - 1);
+      return scanIP.toString();
+    }
+  }
+  return "";
 }
 
 uint16_t LuxpowerTCP::getU16(const uint8_t* buf, int offsetIdx) {
@@ -36,7 +91,7 @@ bool LuxpowerTCP::sendReadBatch(WiFiClient &client, uint16_t startReg, uint16_t 
   frame[4] = 0x19; frame[5] = 0x00; // Payload = 25 bytes
   memcpy(&frame[6], _dongleSn, 10);
   memcpy(&frame[16], _inverterSn, 10);
-  frame[26] = 0x03; // Function: Read
+  frame[26] = 0x03; // Lệnh đọc
   frame[27] = (uint8_t)(startReg & 0xFF);
   frame[28] = (uint8_t)((startReg >> 8) & 0xFF);
   frame[29] = (uint8_t)(count & 0xFF);
@@ -56,6 +111,8 @@ bool LuxpowerTCP::readResponse(WiFiClient &client, uint8_t* buffer, size_t maxLe
 }
 
 bool LuxpowerTCP::readRealtime(LuxRealtimeData &data) {
+  if (strlen(_ip) == 0 || strlen(_dongleSn) < 10 || strlen(_inverterSn) < 10) return false;
+
   WiFiClient client;
   if (!client.connect(_ip, _port, 2000)) return false;
 
@@ -72,27 +129,40 @@ bool LuxpowerTCP::readRealtime(LuxRealtimeData &data) {
   }
   client.stop();
 
-  data.status     = getU16(buf, 0);
-  data.vPv1       = getU16(buf, 1) * 0.1f;
-  data.vPv2       = getU16(buf, 2) * 0.1f;
-  data.pPv1       = getU16(buf, 7);
-  data.pPv2       = getU16(buf, 8);
-  data.pPvTotal   = data.pPv1 + data.pPv2;
-  data.vBat       = getU16(buf, 4) * 0.1f;
-  data.soc        = getU16(buf, 5);
-  data.pCharge    = getU16(buf, 9);
-  data.pDischarge = getU16(buf, 10);
-  data.vGrid      = getU16(buf, 11) * 0.1f;
-  data.fGrid      = getU16(buf, 12) * 0.01f;
-  data.pGrid      = getS16(buf, 13);
-  data.vEps       = getU16(buf, 15) * 0.1f;
-  data.pEps       = getU16(buf, 17);
-  data.tempRad    = getU16(buf, 21);
+  data.status       = getU16(buf, 0);
+  data.vPv1         = getU16(buf, 1) * 0.1f;
+  data.vPv2         = getU16(buf, 2) * 0.1f;
+  data.vBat         = getU16(buf, 4) * 0.1f;
+  data.soc          = getU16(buf, 5);
+  data.pPv1         = getU16(buf, 7);
+  data.pPv2         = getU16(buf, 8);
+  data.pPvTotal     = data.pPv1 + data.pPv2;
+  data.pCharge      = getU16(buf, 9);
+  data.pDischarge   = getU16(buf, 10);
+  data.vGrid        = getU16(buf, 11) * 0.1f;
+  data.fGrid        = getU16(buf, 12) * 0.01f;
+  data.pGrid        = getS16(buf, 13);
+  data.vEps         = getU16(buf, 15) * 0.1f;
+  data.fEps         = getU16(buf, 16) * 0.01f;
+  data.pEps         = getU16(buf, 17);
+  data.sEps         = getU16(buf, 18);
+  data.tempInverter = getU16(buf, 20);
+  data.tempRad      = getU16(buf, 21);
+  data.tempBat      = getU16(buf, 22);
+  data.iPv1         = getU16(buf, 23) * 0.1f;
+  data.iPv2         = getU16(buf, 24) * 0.1f;
+  data.iBat         = getS16(buf, 25) * 0.1f;
+  data.vBus1        = getU16(buf, 26) * 0.1f;
+  data.vBus2        = getU16(buf, 27) * 0.1f;
+  data.faultCode    = getU16(buf, 28);
+  data.warningCode  = getU16(buf, 30);
 
   return true;
 }
 
 bool LuxpowerTCP::readEnergy(LuxEnergyData &data) {
+  if (strlen(_ip) == 0 || strlen(_dongleSn) < 10 || strlen(_inverterSn) < 10) return false;
+
   WiFiClient client;
   if (!client.connect(_ip, _port, 2000)) return false;
 
@@ -111,17 +181,25 @@ bool LuxpowerTCP::readEnergy(LuxEnergyData &data) {
 
   data.epvTotal  = getU32(buf, 0) * 0.1f;
   data.epvToday  = getU16(buf, 4) * 0.1f;
+  data.epv1Today = getU16(buf, 5) * 0.1f;
+  data.epv2Today = getU16(buf, 6) * 0.1f;
   data.echgToday = getU16(buf, 7) * 0.1f;
+  data.echgTotal = getU32(buf, 8) * 0.1f;
   data.edisToday = getU16(buf, 10) * 0.1f;
+  data.edisTotal = getU32(buf, 11) * 0.1f;
   data.eepsToday = getU16(buf, 13) * 0.1f;
+  data.eepsTotal = getU32(buf, 14) * 0.1f;
   data.eExpToday = getU16(buf, 16) * 0.1f;
+  data.eExpTotal = getU32(buf, 17) * 0.1f;
   data.eImpToday = getU16(buf, 19) * 0.1f;
+  data.eImpTotal = getU32(buf, 20) * 0.1f;
 
   return true;
 }
 
-// Ghi 1 thanh ghi đơn (Function code 0x06)
 bool LuxpowerTCP::writeRegister(uint16_t reg, uint16_t value) {
+  if (strlen(_ip) == 0 || strlen(_dongleSn) < 10 || strlen(_inverterSn) < 10) return false;
+
   WiFiClient client;
   if (!client.connect(_ip, _port, 2000)) return false;
 
@@ -131,7 +209,7 @@ bool LuxpowerTCP::writeRegister(uint16_t reg, uint16_t value) {
   frame[4] = 0x19; frame[5] = 0x00;
   memcpy(&frame[6], _dongleSn, 10);
   memcpy(&frame[16], _inverterSn, 10);
-  frame[26] = 0x06; // Function: Write Single Register
+  frame[26] = 0x06; // Lệnh ghi 1 thanh ghi (Write Single Register)
   frame[27] = (uint8_t)(reg & 0xFF);
   frame[28] = (uint8_t)((reg >> 8) & 0xFF);
   frame[29] = (uint8_t)(value & 0xFF);
@@ -146,12 +224,10 @@ bool LuxpowerTCP::writeRegister(uint16_t reg, uint16_t value) {
   return ok;
 }
 
-// Cài đặt dòng nạp (Thanh ghi cài đặt dòng sạc acquy: Reg 33)
 bool LuxpowerTCP::setChargeCurrent(uint8_t amps) {
   return writeRegister(33, (uint16_t)amps);
 }
 
-// Cài đặt dòng xả (Thanh ghi cài đặt dòng xả acquy: Reg 34)
 bool LuxpowerTCP::setDischargeCurrent(uint8_t amps) {
   return writeRegister(34, (uint16_t)amps);
 }
