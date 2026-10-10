@@ -1,0 +1,4 @@
+<ElicitationsGroup message="Các bước tiếp theo để đẩy dự án lên GitHub:">
+  <Elicitation label="Tạo file LICENSE chuẩn MIT" query="Tạo nội dung file LICENSE theo chuẩn MIT License cho thư viện LuxpowerTCP"/>
+  <Elicitation label="Hướng dẫn lệnh Git đẩy code lên GitHub" query="Hướng dẫn các câu lệnh Git cụ thể trên máy tính để tạo repository và đẩy thư viện này lên GitHub"/>
+</ElicitationsGroup>
