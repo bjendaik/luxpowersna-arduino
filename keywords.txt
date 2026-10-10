@@ -2,27 +2,37 @@
 # Syntax Coloring Map For LuxpowerTCP
 #######################################
 
-# Class & Structs (KEYWORD1)
+# Class & Structs
 LuxpowerTCP	KEYWORD1
 LuxRealtimeData	KEYWORD1
 LuxEnergyData	KEYWORD1
 
-# Methods & APIs (KEYWORD2)
+# Methods
 begin	KEYWORD2
+setHost	KEYWORD2
+setDongleSN	KEYWORD2
+setInverterSN	KEYWORD2
+setInterval	KEYWORD2
+getInterval	KEYWORD2
+shouldPoll	KEYWORD2
+discoverIP	KEYWORD2
 readRealtime	KEYWORD2
 readEnergy	KEYWORD2
 writeRegister	KEYWORD2
 setChargeCurrent	KEYWORD2
 setDischargeCurrent	KEYWORD2
 
-# Variables / Fields (LITERAL1)
+# Fields
 status	LITERAL1
 vPv1	LITERAL1
 vPv2	LITERAL1
+iPv1	LITERAL1
+iPv2	LITERAL1
 pPv1	LITERAL1
 pPv2	LITERAL1
 pPvTotal	LITERAL1
 vBat	LITERAL1
+iBat	LITERAL1
 soc	LITERAL1
 pCharge	LITERAL1
 pDischarge	LITERAL1
@@ -30,12 +40,27 @@ vGrid	LITERAL1
 fGrid	LITERAL1
 pGrid	LITERAL1
 vEps	LITERAL1
+fEps	LITERAL1
 pEps	LITERAL1
+sEps	LITERAL1
+vBus1	LITERAL1
+vBus2	LITERAL1
+tempInverter	LITERAL1
 tempRad	LITERAL1
+tempBat	LITERAL1
+faultCode	LITERAL1
+warningCode	LITERAL1
 epvToday	LITERAL1
 epvTotal	LITERAL1
+epv1Today	LITERAL1
+epv2Today	LITERAL1
 echgToday	LITERAL1
+echgTotal	LITERAL1
 edisToday	LITERAL1
+edisTotal	LITERAL1
 eepsToday	LITERAL1
-eImpToday	LITERAL1
+eepsTotal	LITERAL1
 eExpToday	LITERAL1
+eExpTotal	LITERAL1
+eImpToday	LITERAL1
+eImpTotal	LITERAL1
